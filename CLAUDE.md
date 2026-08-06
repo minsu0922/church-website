@@ -114,6 +114,7 @@ XxxRepository         (extends JpaRepository + XxxRepositoryCustom)
 ### 주의사항
 
 - 민감 정보(DB 비밀번호, 카카오맵 API 키)는 `application-local.properties`에만 존재하며 `.gitignore`로 커밋에서 제외됨. `application.properties`에는 플레이스홀더만 있음 — 실제 값을 절대 커밋하지 말 것
-- 과거 git 히스토리(예: `0d5fbe0`, `9cb6d37`)에 카카오맵 API 키와 DB 비밀번호가 하드코딩된 커밋이 남아 있음 — 저장소를 public으로 전환하려면 먼저 키 재발급·비밀번호 변경 필요
+- 저장소는 **public**임 (`github.com/minsu0922/church-website`, 과거 이름 `SpringBoot_MCP_Project`에서 변경). 커밋 전 민감 정보 포함 여부를 반드시 확인할 것
+- 2026-08-06: 과거 히스토리에 하드코딩돼 있던 DB 비밀번호·카카오맵 API 키를 `git filter-repo`로 전체 제거하고 force push 완료. 이때 **모든 커밋 해시가 재작성됨** (구 `18f9781` → 신 `ed77e1c`) — 그 이전 커밋 해시를 참조하는 문서·이슈는 더 이상 유효하지 않음. DB 비밀번호는 교체 완료, 카카오맵 JS 키는 개발자 콘솔의 도메인 제한으로 방어 중
 - H2는 테스트 전용(runtime), 운영·로컬은 MySQL만 사용
 - 업로드 파일은 `${user.dir}/uploads/` 하위에 저장됨 (git 추적 제외)
