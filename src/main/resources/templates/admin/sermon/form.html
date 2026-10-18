@@ -133,12 +133,12 @@
             <div class="source-tabs">
                 <label class="source-tab">
                     <input type="radio" name="videoSource" value="YOUTUBE"
-                           th:checked="${!sermon.uploadedVideo}" onchange="switchSource()">
+                           th:checked="${!sermon.uploadedFile}" onchange="switchSource()">
                     YouTube 링크
                 </label>
                 <label class="source-tab">
                     <input type="radio" name="videoSource" value="UPLOAD"
-                           th:checked="${sermon.uploadedVideo}" onchange="switchSource()">
+                           th:checked="${sermon.uploadedFile}" onchange="switchSource()">
                     파일 업로드
                 </label>
             </div>
@@ -148,11 +148,11 @@
         <div class="form-row" id="youtubeSection">
             <label class="form-label">YouTube URL <span class="form-required">*</span></label>
             <input type="url" name="videoUrl" id="videoUrl" class="form-input"
-                   th:value="${sermon.uploadedVideo} ? '' : ${sermon.videoUrl}"
+                   th:value="${sermon.uploadedFile} ? '' : ${sermon.videoUrl}"
                    placeholder="https://www.youtube.com/watch?v=..."
                    oninput="previewYoutube(this.value)">
             <p class="form-hint">YouTube 영상 주소창 URL 또는 공유 링크를 붙여넣으세요.</p>
-            <p class="form-hint" th:if="${sermon.id != null and !sermon.uploadedVideo}">비워두면 기존 URL이 유지됩니다.</p>
+            <p class="form-hint" th:if="${sermon.id != null and !sermon.uploadedFile}">비워두면 기존 URL이 유지됩니다.</p>
             <div id="youtubePreview" class="yt-preview">
                 <img id="ytThumb" src="" alt="YouTube 썸네일 미리보기">
             </div>
@@ -160,12 +160,13 @@
 
         <!-- 영상 파일 업로드 -->
         <div class="form-row" id="uploadSection">
-            <label class="form-label">영상 파일 <span class="form-required">*</span></label>
+            <label class="form-label">영상·음성 파일 <span class="form-required">*</span></label>
             <input type="file" name="videoFile" id="videoFile" class="form-input"
-                   accept="video/mp4,video/webm" onchange="checkVideoSize(this)">
-            <p class="form-hint">mp4, webm 파일만 올릴 수 있습니다. 최대 100MB.</p>
-            <p class="form-hint" th:if="${sermon.uploadedVideo}">
-                현재 영상: <a th:href="${sermon.videoUrl}" target="_blank" th:text="${sermon.videoUrl}"></a>
+                   accept=".mp4,.webm,.mp3,.m4a,video/mp4,video/webm,audio/mpeg,audio/mp4,audio/x-m4a"
+                   onchange="checkVideoSize(this)">
+            <p class="form-hint">영상은 mp4·webm, 음성은 mp3·m4a 파일을 올릴 수 있습니다. 최대 100MB.</p>
+            <p class="form-hint" th:if="${sermon.uploadedFile}">
+                현재 파일: <a th:href="${sermon.videoUrl}" target="_blank" th:text="${sermon.videoUrl}"></a>
                 (새 파일을 고르지 않으면 그대로 유지됩니다)
             </p>
             <p class="form-hint" id="videoSizeError" style="color:#A32D2D; display:none;"></p>

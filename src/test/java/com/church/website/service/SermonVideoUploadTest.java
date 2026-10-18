@@ -82,16 +82,35 @@ class SermonVideoUploadTest {
     void 파일을_업로드하면_서버에_저장되고_업로드_영상으로_판별된다() throws Exception {
         Sermon saved = sermonService.save(form(null, null), VideoSource.UPLOAD, mp4());
 
-        assertThat(saved.isUploadedVideo()).isTrue();
+        assertThat(saved.isUploadedFile()).isTrue();
+        assertThat(saved.isAudioFile()).isFalse();
         assertThat(saved.getYoutubeVideoId()).isNull();
         assertThat(Files.readAllBytes(fileOf(saved))).isEqualTo(VIDEO_BYTES);
+    }
+
+    @Test
+    void m4a_음성_파일을_올리면_음성으로_판별된다() throws Exception {
+        MockMultipartFile m4a = new MockMultipartFile("videoFile", "설교.m4a", "audio/x-m4a", VIDEO_BYTES);
+
+        Sermon saved = sermonService.save(form(null, null), VideoSource.UPLOAD, m4a);
+
+        assertThat(saved.isAudioFile()).isTrue();
+        assertThat(saved.getVideoUrl()).endsWith(".m4a");
+        assertThat(fileOf(saved)).exists();
+    }
+
+    @Test
+    void 확장자가_맞아도_영상_음성이_아닌_파일은_거부한다() {
+        MockMultipartFile fake = new MockMultipartFile("videoFile", "a.mp3", "text/html", VIDEO_BYTES);
+        assertThatThrownBy(() -> sermonService.save(form(null, null), VideoSource.UPLOAD, fake))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void YouTube_링크로_등록하면_파일을_저장하지_않는다() throws Exception {
         Sermon saved = sermonService.save(form(null, YOUTUBE_URL), VideoSource.YOUTUBE, null);
 
-        assertThat(saved.isUploadedVideo()).isFalse();
+        assertThat(saved.isUploadedFile()).isFalse();
         assertThat(saved.getYoutubeVideoId()).isEqualTo("abcdefghijk");
     }
 
@@ -177,5 +196,18 @@ class SermonVideoUploadTest {
 
         assertThat(editHtml).containsPattern("value=\"UPLOAD\"\\s+onchange=\"switchSource\\(\\)\" checked=\"checked\"");
         assertThat(detailHtml).contains("<video src=\"" + saved.getVideoUrl() + "\"");
+        assertThat(detailHtml).doesNotContain("<audio");
+    }
+
+    @Test
+    void 음성_설교_상세_페이지는_audio_태그로_재생한다() throws Exception {
+        MockMultipartFile mp3 = new MockMultipartFile("videoFile", "a.mp3", "audio/mpeg", VIDEO_BYTES);
+        Sermon saved = sermonService.save(form(null, null), VideoSource.UPLOAD, mp3);
+
+        String detailHtml = mockMvc.perform(get("/sermon/" + saved.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(detailHtml).contains("<audio src=\"" + saved.getVideoUrl() + "\"");
+        assertThat(detailHtml).doesNotContain("<video");
     }
 }

@@ -23,7 +23,7 @@ import java.util.UUID;
 /**
  * 설교 영상 비즈니스 로직 서비스.
  *
- * <p>영상은 YouTube URL 또는 서버 업로드 파일 중 하나로 등록한다.
+ * <p>설교 미디어는 YouTube URL 또는 서버 업로드 파일(영상·음성) 중 하나로 등록한다.
  * 두 경우 모두 Sermon.videoUrl 한 컬럼에 저장하고, 업로드 파일은 "/uploads/sermon/" 접두사로 구분한다.
  */
 @Slf4j
@@ -34,9 +34,10 @@ public class SermonService {
     /** 관리자 폼에서 고른 영상 등록 방식. */
     public enum VideoSource { YOUTUBE, UPLOAD }
 
-    // 브라우저 video 태그가 별도 변환 없이 재생하는 형식만 받는다. mov(HEVC)는 크롬에서 재생되지 않는다.
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".mp4", ".webm");
-    private static final Set<String> ALLOWED_MIME_TYPES = Set.of("video/mp4", "video/webm");
+    // 브라우저가 변환 없이 재생하는 형식만 받는다. mov(HEVC)는 크롬에서 재생되지 않는다.
+    // MIME은 브라우저마다 m4a를 audio/mp4·audio/x-m4a 등으로 달리 보내서 종류(audio/·video/)만 본다.
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".mp4", ".webm", ".mp3", ".m4a");
+    private static final String FORMAT_HINT = "(허용: mp4, webm, mp3, m4a)";
 
     private final SermonRepository sermonRepository;
 
@@ -111,12 +112,12 @@ public class SermonService {
                                    MultipartFile videoFile) throws IOException {
         if (source == VideoSource.UPLOAD) {
             if (videoFile != null && !videoFile.isEmpty()) return saveVideo(videoFile);
-            if (current.isUploadedVideo()) return current.getVideoUrl();
-            throw new IllegalArgumentException("업로드할 영상 파일을 선택해주세요.");
+            if (current.isUploadedFile()) return current.getVideoUrl();
+            throw new IllegalArgumentException("업로드할 영상 또는 음성 파일을 선택해주세요.");
         }
         String url = form.getVideoUrl();
         if (url != null && !url.isBlank()) return url.trim();
-        if (current.getVideoUrl() != null && !current.isUploadedVideo()) return current.getVideoUrl();
+        if (current.getVideoUrl() != null && !current.isUploadedFile()) return current.getVideoUrl();
         throw new IllegalArgumentException("YouTube URL을 입력해주세요.");
     }
 
@@ -134,15 +135,15 @@ public class SermonService {
     }
 
     private String saveVideo(MultipartFile file) throws IOException {
-        String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_MIME_TYPES.contains(contentType.toLowerCase())) {
-            throw new IllegalArgumentException("허용되지 않는 영상 형식입니다. (허용: mp4, webm)");
+        String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase();
+        if (!contentType.startsWith("video/") && !contentType.startsWith("audio/")) {
+            throw new IllegalArgumentException("영상 또는 음성 파일만 올릴 수 있습니다. " + FORMAT_HINT);
         }
         String originalName = file.getOriginalFilename();
         String ext = (originalName != null && originalName.contains("."))
                 ? originalName.substring(originalName.lastIndexOf(".")).toLowerCase() : "";
         if (!ALLOWED_EXTENSIONS.contains(ext)) {
-            throw new IllegalArgumentException("허용되지 않는 파일 확장자입니다. (허용: mp4, webm)");
+            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다. " + FORMAT_HINT);
         }
 
         Path dir = Paths.get(uploadDir);
@@ -151,7 +152,7 @@ public class SermonService {
         Path dest = dir.resolve(savedName);
         file.transferTo(dest.toFile());
 
-        log.info("설교 영상 저장: {}", dest);
+        log.info("설교 미디어 저장: {}", dest);
         return Sermon.UPLOAD_URL_PREFIX + savedName;
     }
 

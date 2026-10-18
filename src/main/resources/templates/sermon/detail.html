@@ -59,6 +59,9 @@
             border: none;
         }
 
+        .sermon-audio-wrap { margin-bottom: 28px; }
+        .sermon-audio-wrap audio { width: 100%; }
+
         .sermon-detail-desc {
             font-size: 14px;
             font-weight: 300;
@@ -127,9 +130,14 @@
         </div>
 
         <!-- 업로드 영상 플레이어 -->
-        <div class="sermon-video-wrap" th:if="${sermon.uploadedVideo}">
+        <div class="sermon-video-wrap" th:if="${sermon.uploadedFile and !sermon.audioFile}">
             <video th:src="${sermon.videoUrl}" th:poster="${sermon.thumbnailUrl}"
                    controls preload="metadata" playsinline></video>
+        </div>
+
+        <!-- 업로드 음성 플레이어 -->
+        <div class="sermon-audio-wrap" th:if="${sermon.audioFile}">
+            <audio th:src="${sermon.videoUrl}" controls preload="metadata"></audio>
         </div>
 
         <!-- 설교 설명 -->
