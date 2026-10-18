@@ -55,6 +55,12 @@
     .yt-preview {
         margin-top: 12px; display: none;
     }
+    .source-tabs { display: flex; gap: 10px; }
+    .source-tab {
+        display: flex; align-items: center; gap: 6px; padding: 9px 16px;
+        border: 1px solid #DDE4EF; border-radius: 6px; font-size: 14px; color: #0A1F3D; cursor: pointer;
+    }
+    .source-tab:has(input:checked) { border-color: #185FA5; background: #F4F7FC; }
     .yt-preview img {
         width: 160px; height: 90px; object-fit: cover; border-radius: 6px;
         border: 1px solid #DDE4EF;
@@ -64,7 +70,7 @@
 <div th:if="${error}" class="alert-error" th:text="${error}"></div>
 
 <div class="form-card">
-    <form th:action="@{/admin/sermon/save}" method="post" id="sermonForm">
+    <form th:action="@{/admin/sermon/save}" method="post" id="sermonForm" enctype="multipart/form-data">
         <input type="hidden" name="id" th:value="${sermon.id}">
 
         <!-- 제목 -->
@@ -121,19 +127,48 @@
                       placeholder="설교 내용을 간략히 소개해주세요 (선택)." th:text="${sermon.description}"></textarea>
         </div>
 
-        <!-- YouTube URL -->
+        <!-- 영상 등록 방식 -->
         <div class="form-row">
+            <label class="form-label">영상 등록 방식 <span class="form-required">*</span></label>
+            <div class="source-tabs">
+                <label class="source-tab">
+                    <input type="radio" name="videoSource" value="YOUTUBE"
+                           th:checked="${!sermon.uploadedVideo}" onchange="switchSource()">
+                    YouTube 링크
+                </label>
+                <label class="source-tab">
+                    <input type="radio" name="videoSource" value="UPLOAD"
+                           th:checked="${sermon.uploadedVideo}" onchange="switchSource()">
+                    파일 업로드
+                </label>
+            </div>
+        </div>
+
+        <!-- YouTube URL -->
+        <div class="form-row" id="youtubeSection">
             <label class="form-label">YouTube URL <span class="form-required">*</span></label>
             <input type="url" name="videoUrl" id="videoUrl" class="form-input"
-                   th:value="${sermon.videoUrl}"
+                   th:value="${sermon.uploadedVideo} ? '' : ${sermon.videoUrl}"
                    placeholder="https://www.youtube.com/watch?v=..."
-                   oninput="previewYoutube(this.value)"
-                   th:required="${sermon.id == null}">
+                   oninput="previewYoutube(this.value)">
             <p class="form-hint">YouTube 영상 주소창 URL 또는 공유 링크를 붙여넣으세요.</p>
-            <p class="form-hint" th:if="${sermon.id != null}">비워두면 기존 URL이 유지됩니다.</p>
+            <p class="form-hint" th:if="${sermon.id != null and !sermon.uploadedVideo}">비워두면 기존 URL이 유지됩니다.</p>
             <div id="youtubePreview" class="yt-preview">
                 <img id="ytThumb" src="" alt="YouTube 썸네일 미리보기">
             </div>
+        </div>
+
+        <!-- 영상 파일 업로드 -->
+        <div class="form-row" id="uploadSection">
+            <label class="form-label">영상 파일 <span class="form-required">*</span></label>
+            <input type="file" name="videoFile" id="videoFile" class="form-input"
+                   accept="video/mp4,video/webm" onchange="checkVideoSize(this)">
+            <p class="form-hint">mp4, webm 파일만 올릴 수 있습니다. 최대 100MB.</p>
+            <p class="form-hint" th:if="${sermon.uploadedVideo}">
+                현재 영상: <a th:href="${sermon.videoUrl}" target="_blank" th:text="${sermon.videoUrl}"></a>
+                (새 파일을 고르지 않으면 그대로 유지됩니다)
+            </p>
+            <p class="form-hint" id="videoSizeError" style="color:#A32D2D; display:none;"></p>
         </div>
 
         <!-- 썸네일 URL (선택) -->
@@ -142,7 +177,7 @@
             <input type="url" name="thumbnailUrl" class="form-input"
                    th:value="${sermon.thumbnailUrl}"
                    placeholder="비워두면 YouTube 썸네일이 자동으로 사용됩니다">
-            <p class="form-hint">다른 이미지를 사용하려면 URL을 직접 입력하세요.</p>
+            <p class="form-hint">다른 이미지를 사용하려면 URL을 직접 입력하세요. 업로드 영상은 자동 썸네일이 없습니다.</p>
         </div>
 
         <div class="form-actions">
@@ -165,9 +200,31 @@ function previewYoutube(url) {
         preview.style.display = 'none';
     }
 }
+// spring.servlet.multipart.max-file-size(100MB)와 맞춘다. 넘으면 서버가 오류 페이지를 띄우므로 미리 막는다.
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+
+function checkVideoSize(input) {
+    const err = document.getElementById('videoSizeError');
+    const file = input.files[0];
+    if (file && file.size > MAX_VIDEO_BYTES) {
+        err.textContent = '파일이 너무 큽니다 (' + (file.size / 1024 / 1024).toFixed(0) + 'MB). 100MB 이하만 올릴 수 있습니다.';
+        err.style.display = 'block';
+        input.value = '';
+    } else {
+        err.style.display = 'none';
+    }
+}
+
+function switchSource() {
+    const upload = document.querySelector('input[name="videoSource"]:checked').value === 'UPLOAD';
+    document.getElementById('youtubeSection').style.display = upload ? 'none' : '';
+    document.getElementById('uploadSection').style.display = upload ? '' : 'none';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const urlInput = document.getElementById('videoUrl');
     if (urlInput && urlInput.value) previewYoutube(urlInput.value);
+    switchSource();
 });
 </script>
 </main>

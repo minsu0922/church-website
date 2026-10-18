@@ -56,7 +56,7 @@ import java.util.List;
  *   <li>공지사항  : /admin/notices — 등록·수정·삭제·팝업 설정</li>
  *   <li>사역사진  : /admin/ministry — 사진 업로드·수정·삭제</li>
  *   <li>새가족    : /admin/new-family — 등록 목록 조회·확인 처리·메모</li>
- *   <li>설교      : /admin/sermon — YouTube URL 기반 설교 등록·수정·삭제</li>
+ *   <li>설교      : /admin/sermon — YouTube URL 또는 영상 업로드로 설교 등록·수정·삭제</li>
  *   <li>계정      : /admin/account — 관리자 계정 추가·비밀번호 변경·활성화 토글</li>
  *   <li>설정      : /admin/settings — 교회 위치·연락처 정보 저장</li>
  *   <li>주보      : /admin/bulletin — 주보 등록·수정·인쇄</li>
@@ -401,30 +401,25 @@ public class AdminController extends BaseController {
     /**
      * 설교 저장 (등록/수정 공용).
      * 날짜는 HTML date 입력값(문자열)을 직접 파싱한다.
-     * YouTube URL은 신규 등록 시 필수이며, 수정 시 비워두면 기존 URL을 유지한다.
+     * 영상은 videoSource에 따라 YouTube URL 또는 업로드 파일로 받는다.
      */
     @PostMapping("/sermon/save")
     public String sermonSave(
             @ModelAttribute Sermon sermon,
             @RequestParam(value = "sermonDateStr", required = false) String sermonDateStr,
+            @RequestParam(value = "videoSource", defaultValue = "YOUTUBE") SermonService.VideoSource videoSource,
+            @RequestParam(value = "videoFile", required = false) MultipartFile videoFile,
             RedirectAttributes redirectAttributes) {
+        boolean isNew = sermon.getId() == null;
+        String formPath = isNew ? "/admin/sermon/new" : "/admin/sermon/edit/" + sermon.getId();
         return run(() -> {
             if (sermonDateStr != null && !sermonDateStr.isBlank()) {
                 sermon.setSermonDate(LocalDate.parse(sermonDateStr));
             }
-            if (sermon.getId() == null) {
-                if (sermon.getVideoUrl() == null || sermon.getVideoUrl().isBlank()) {
-                    redirectAttributes.addFlashAttribute("error", "YouTube URL을 입력해주세요.");
-                    return "redirect:/admin/sermon/new";
-                }
-                sermonService.create(sermon);
-                redirectAttributes.addFlashAttribute("message", "설교가 등록되었습니다.");
-            } else {
-                sermonService.update(sermon.getId(), sermon);
-                redirectAttributes.addFlashAttribute("message", "설교가 수정되었습니다.");
-            }
+            sermonService.save(sermon, videoSource, videoFile);
+            redirectAttributes.addFlashAttribute("message", isNew ? "설교가 등록되었습니다." : "설교가 수정되었습니다.");
             return "redirect:/admin/sermon";
-        }, "/admin/sermon", "설교 저장 실패", redirectAttributes);
+        }, formPath, "설교 저장 실패", redirectAttributes);
     }
 
     /** 설교 삭제. */

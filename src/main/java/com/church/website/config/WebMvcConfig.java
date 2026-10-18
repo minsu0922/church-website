@@ -31,6 +31,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${file.upload.people.dir}")
     private String peopleUploadDir;
 
+    @Value("${file.upload.sermon.dir}")
+    private String sermonUploadDir;
+
     private final RequestLoggingInterceptor requestLoggingInterceptor;
 
     /**
@@ -45,6 +48,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addResourceLocations("file:" + ministryUploadDir + "/");
         registry.addResourceHandler("/uploads/people/**")
                 .addResourceLocations("file:" + peopleUploadDir + "/");
+        registry.addResourceHandler("/uploads/sermon/**")
+                .addResourceLocations("file:" + sermonUploadDir + "/");
     }
 
     /**

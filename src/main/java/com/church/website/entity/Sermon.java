@@ -14,9 +14,8 @@ import java.util.regex.Pattern;
 /**
  * 설교 영상 엔티티.
  *
- * <p>YouTube에 업로드된 설교 영상 정보를 담는다.
- * 영상 파일 자체는 서버에 저장하지 않고 YouTube URL만 저장하여
- * 페이지에서 YouTube iframe으로 임베드해 재생한다.
+ * <p>설교 영상 정보를 담는다. 영상은 두 방식 중 하나다.
+ * YouTube URL이면 iframe으로 임베드하고, 업로드 파일이면 video 태그로 재생한다.
  *
  * <p>YouTube URL 처리:
  * videoUrl에 입력된 다양한 형태의 YouTube 링크(watch?v=, youtu.be/, embed/)를
@@ -51,7 +50,13 @@ public class Sermon {
     @Column(nullable = false, length = 200)
     private String biblePassage;
 
-    /** YouTube 영상 URL (전체 URL을 저장, ID 추출은 getYoutubeVideoId() 사용) */
+    /** 업로드한 영상 파일의 URL 접두사. videoUrl이 이걸로 시작하면 서버 파일이다. */
+    public static final String UPLOAD_URL_PREFIX = "/uploads/sermon/";
+
+    /**
+     * 영상 주소. YouTube URL 또는 업로드 파일 URL("/uploads/sermon/파일명")을 저장한다.
+     * 컬럼을 따로 두지 않은 이유: 운영 DB가 ddl-auto=validate라 스키마 변경 없이 넣기 위해서다.
+     */
     @Column
     private String videoUrl;
 
@@ -86,11 +91,16 @@ public class Sermon {
      * @return 11자리 비디오 ID. URL이 null이거나 패턴과 맞지 않으면 null 반환.
      */
     public String getYoutubeVideoId() {
-        if (videoUrl == null) return null;
+        if (videoUrl == null || isUploadedVideo()) return null;
         Pattern pattern = Pattern.compile(
             "(?:youtube\\.com/(?:watch\\?v=|embed/)|youtu\\.be/)([a-zA-Z0-9_-]{11})"
         );
         Matcher matcher = pattern.matcher(videoUrl);
         return matcher.find() ? matcher.group(1) : null;
+    }
+
+    /** 서버에 업로드한 영상이면 true. 템플릿에서는 sermon.uploadedVideo로 쓴다. */
+    public boolean isUploadedVideo() {
+        return videoUrl != null && videoUrl.startsWith(UPLOAD_URL_PREFIX);
     }
 }

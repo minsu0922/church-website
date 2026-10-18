@@ -5,29 +5,43 @@ import com.church.website.exception.EntityNotFoundException;
 import com.church.website.repository.SermonRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * 설교 영상 비즈니스 로직 서비스.
  *
- * <p>설교 영상의 CRUD와 검색을 담당한다.
- * 영상 파일 자체는 YouTube에 있고, 이 서비스는 YouTube URL·제목·본문 등 메타데이터만 관리한다.
- *
- * <p>수정 시 videoUrl 처리:
- * URL이 입력되지 않으면 기존 URL을 그대로 유지한다.
- * (수정 폼에서 URL을 굳이 다시 입력하지 않아도 됨)
+ * <p>영상은 YouTube URL 또는 서버 업로드 파일 중 하나로 등록한다.
+ * 두 경우 모두 Sermon.videoUrl 한 컬럼에 저장하고, 업로드 파일은 "/uploads/sermon/" 접두사로 구분한다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SermonService {
 
+    /** 관리자 폼에서 고른 영상 등록 방식. */
+    public enum VideoSource { YOUTUBE, UPLOAD }
+
+    // 브라우저 video 태그가 별도 변환 없이 재생하는 형식만 받는다. mov(HEVC)는 크롬에서 재생되지 않는다.
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".mp4", ".webm");
+    private static final Set<String> ALLOWED_MIME_TYPES = Set.of("video/mp4", "video/webm");
+
     private final SermonRepository sermonRepository;
+
+    @Value("${file.upload.sermon.dir}")
+    private String uploadDir;
 
     /**
      * 성경 본문 검색 + 페이지네이션으로 설교 목록을 반환한다.
@@ -61,40 +75,53 @@ public class SermonService {
         return sermonRepository.findAll();
     }
 
-    /** 설교 신규 등록. */
-    @Transactional
-    public Sermon create(Sermon sermon) {
-        log.info("설교 등록: {}", sermon.getTitle());
-        return sermonRepository.save(sermon);
-    }
-
     /**
-     * 설교 정보 수정.
-     * videoUrl이 비어있으면 기존 URL을 유지한다.
-     * thumbnailUrl이 비어있으면 null로 설정하여 YouTube 기본 썸네일을 사용하도록 한다.
+     * 설교 등록·수정 공용.
+     * 수정 때 같은 방식으로 새 값을 안 넣으면 기존 영상을 유지한다.
+     * 방식을 바꾸는데 새 값이 없으면 IllegalArgumentException을 던진다.
      */
     @Transactional
-    public Sermon update(Long id, Sermon updated) {
-        Sermon sermon = getById(id);
-        sermon.setTitle(updated.getTitle());
-        sermon.setPreacher(updated.getPreacher());
-        sermon.setSermonDate(updated.getSermonDate());
-        sermon.setBiblePassage(updated.getBiblePassage());
-        sermon.setDescription(updated.getDescription());
-        // URL이 입력된 경우에만 교체 — 비워두면 기존 URL 유지
-        if (updated.getVideoUrl() != null && !updated.getVideoUrl().isBlank()) {
-            sermon.setVideoUrl(updated.getVideoUrl());
-        }
+    public Sermon save(Sermon form, VideoSource source, MultipartFile videoFile) throws IOException {
+        boolean isNew = form.getId() == null;
+        Sermon sermon = isNew ? new Sermon() : getById(form.getId());
+        String oldVideoUrl = sermon.getVideoUrl();
+
+        String newVideoUrl = resolveVideoUrl(sermon, form, source, videoFile);
+
+        sermon.setTitle(form.getTitle());
+        sermon.setPreacher(form.getPreacher());
+        sermon.setSermonDate(form.getSermonDate());
+        sermon.setBiblePassage(form.getBiblePassage());
+        sermon.setDescription(form.getDescription());
         sermon.setThumbnailUrl(
-            (updated.getThumbnailUrl() != null && !updated.getThumbnailUrl().isBlank())
-                ? updated.getThumbnailUrl() : null
-        );
-        log.info("설교 수정: {}", sermon.getTitle());
-        return sermonRepository.save(sermon);
+                (form.getThumbnailUrl() != null && !form.getThumbnailUrl().isBlank())
+                        ? form.getThumbnailUrl() : null);
+        sermon.setVideoUrl(newVideoUrl);
+
+        Sermon saved = sermonRepository.save(sermon);
+        if (oldVideoUrl != null && !oldVideoUrl.equals(newVideoUrl)) {
+            deleteVideo(oldVideoUrl);
+        }
+        log.info("설교 {}: {}", isNew ? "등록" : "수정", saved.getTitle());
+        return saved;
+    }
+
+    /** 이번 저장에서 쓸 videoUrl을 정한다. 새 파일이 있으면 이 단계에서 디스크에 저장한다. */
+    private String resolveVideoUrl(Sermon current, Sermon form, VideoSource source,
+                                   MultipartFile videoFile) throws IOException {
+        if (source == VideoSource.UPLOAD) {
+            if (videoFile != null && !videoFile.isEmpty()) return saveVideo(videoFile);
+            if (current.isUploadedVideo()) return current.getVideoUrl();
+            throw new IllegalArgumentException("업로드할 영상 파일을 선택해주세요.");
+        }
+        String url = form.getVideoUrl();
+        if (url != null && !url.isBlank()) return url.trim();
+        if (current.getVideoUrl() != null && !current.isUploadedVideo()) return current.getVideoUrl();
+        throw new IllegalArgumentException("YouTube URL을 입력해주세요.");
     }
 
     /**
-     * 설교 삭제.
+     * 설교 삭제. 업로드한 영상 파일도 함께 지운다.
      *
      * @throws EntityNotFoundException 해당 id가 존재하지 않으면 발생
      */
@@ -103,5 +130,46 @@ public class SermonService {
         Sermon sermon = getById(id);
         log.info("설교 삭제: {}", sermon.getTitle());
         sermonRepository.delete(sermon);
+        deleteVideo(sermon.getVideoUrl());
+    }
+
+    private String saveVideo(MultipartFile file) throws IOException {
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_MIME_TYPES.contains(contentType.toLowerCase())) {
+            throw new IllegalArgumentException("허용되지 않는 영상 형식입니다. (허용: mp4, webm)");
+        }
+        String originalName = file.getOriginalFilename();
+        String ext = (originalName != null && originalName.contains("."))
+                ? originalName.substring(originalName.lastIndexOf(".")).toLowerCase() : "";
+        if (!ALLOWED_EXTENSIONS.contains(ext)) {
+            throw new IllegalArgumentException("허용되지 않는 파일 확장자입니다. (허용: mp4, webm)");
+        }
+
+        Path dir = Paths.get(uploadDir);
+        Files.createDirectories(dir);
+        String savedName = UUID.randomUUID().toString().replace("-", "") + ext;
+        Path dest = dir.resolve(savedName);
+        file.transferTo(dest.toFile());
+
+        log.info("설교 영상 저장: {}", dest);
+        return Sermon.UPLOAD_URL_PREFIX + savedName;
+    }
+
+    /** 업로드 영상 파일을 지운다. YouTube URL이거나 업로드 폴더 밖을 가리키면 무시한다. */
+    void deleteVideo(String videoUrl) {
+        if (videoUrl == null || !videoUrl.startsWith(Sermon.UPLOAD_URL_PREFIX)) return;
+        try {
+            String filename = videoUrl.substring(Sermon.UPLOAD_URL_PREFIX.length());
+            Path uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
+            Path target = uploadRoot.resolve(filename).normalize();
+            if (!target.startsWith(uploadRoot)) {
+                log.warn("허용되지 않는 파일 경로 접근 차단: {}", videoUrl);
+                return;
+            }
+            Files.deleteIfExists(target);
+            log.info("설교 영상 삭제: {}", target);
+        } catch (IOException e) {
+            log.warn("설교 영상 삭제 실패: {}", videoUrl, e);
+        }
     }
 }
