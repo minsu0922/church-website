@@ -60,7 +60,9 @@ public class SecurityConfig {
                 ).permitAll()
                 // 관리자 페이지는 ROLE_ADMIN 권한 필수
                 .requestMatchers("/admin/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
+                // 관리자 외 주소는 모두 공개라 나머지도 허용한다. authenticated()면 없는 주소가 404 대신 로그인으로 간다.
+                // 로그인이 필요한 새 기능은 반드시 /admin/** 아래에 둘 것
+                .anyRequest().permitAll()
             )
             .headers(headers -> headers
                 // iframe 삽입 금지 — 클릭재킹 방어
