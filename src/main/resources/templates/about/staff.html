@@ -35,8 +35,8 @@
             <div class="person-card-body">
                 <div class="role" th:text="${s.role} ?: '교역자'">교역자</div>
                 <h3 th:text="${s.name}">이름</h3>
-                <p th:if="${s.ministry != null}"><strong>담당 사역:</strong> <span th:text="${s.ministry}"></span></p>
-                <p th:if="${s.bio != null}" th:text="${s.bio}"></p>
+                <p th:if="${!#strings.isEmpty(s.ministry)}"><strong>담당 사역:</strong> <span th:text="${s.ministry}"></span></p>
+                <p th:if="${!#strings.isEmpty(s.bio)}" th:text="${s.bio}" style="white-space: pre-wrap;"></p>
             </div>
         </div>
     </th:block>
