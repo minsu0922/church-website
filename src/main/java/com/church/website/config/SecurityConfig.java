@@ -76,13 +76,14 @@ public class SecurityConfig {
                 .contentSecurityPolicy(csp -> csp
                     .policyDirectives(
                         "default-src 'self'; " +
-                        "script-src 'self' 'unsafe-inline' dapi.kakao.com https://t1.daumcdn.net http://t1.daumcdn.net; " +
+                        // 카카오 SDK는 지도 본체·주소 검색 스크립트를 t1.kakaocdn.net에서 받는다 (daumcdn은 구 주소)
+                        "script-src 'self' 'unsafe-inline' dapi.kakao.com https://t1.kakaocdn.net http://t1.kakaocdn.net https://t1.daumcdn.net http://t1.daumcdn.net; " +
                         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
                         "font-src 'self' https://fonts.gstatic.com; " +
                         "img-src 'self' data: blob: *; " +
                         "frame-src 'self' www.youtube.com youtube.com; " +
                         // 카카오 지오코더(services)는 페이지 프로토콜을 따라가므로 dev(http)·운영(https) 모두 허용
-                        "connect-src 'self' https://dapi.kakao.com http://dapi.kakao.com https://t1.daumcdn.net http://t1.daumcdn.net"
+                        "connect-src 'self' https://dapi.kakao.com http://dapi.kakao.com https://t1.kakaocdn.net http://t1.kakaocdn.net https://t1.daumcdn.net http://t1.daumcdn.net"
                     )
                 )
             )
